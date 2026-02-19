@@ -5,6 +5,7 @@ from scipy.stats import pearsonr
 from scipy.spatial.distance import jensenshannon
 import torch
 import networkx as nx
+import numpy as np
 
 # the following numbers do not reflect the provided dataset, just for an example
 num_test_samples = 20
@@ -26,6 +27,10 @@ gt_matrices[gt_matrices < 0] = 0
 mae_bc = []
 mae_ec = []
 mae_pc = []
+
+# Initialize lists to store vectorized matrices
+pred_1d_list = []
+gt_1d_list = []
 
 # Iterate over each test sample
 for i in range(num_test_samples):
