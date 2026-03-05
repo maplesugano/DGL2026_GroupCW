@@ -44,7 +44,7 @@ Key hyperparameters: `HIDDEN_DIM=128`, `MLP_DIM=256`, `EPOCHS=200`, `LR=1e-3`, `
 ---
 
 ## Pipeline
-![Pipeline Flowchart](report_artifacts/pipeline_flowchart.png)
+![Pipeline Flowchart](figs/report_flowchart_pipeline.png)
 
 ---
 
