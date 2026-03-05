@@ -1,0 +1,95 @@
+flowchart TB
+  %% =========================
+  %% Main Figure: Learning Pipeline (Train + Test)
+  %% =========================
+
+  %% ---------- Inputs ----------
+  subgraph I[Inputs]
+    direction TB
+    LRtr["data/lr_train.csv<br/>(167 × 12720)<br/>vectorised LR edges"]
+    HRtr["data/hr_train.csv<br/>(167 × 35778)<br/>vectorised HR edges"]
+    LRte["data/lr_test.csv<br/>(112 × 12720)<br/>vectorised LR edges"]
+  end
+
+  %% ---------- Preprocessing ----------
+  subgraph P[Pre-processing]
+    direction TB
+    San["Sanitise values<br/>- NaN/Inf → 0<br/>- negatives → 0<br/>- keep in 0,1"]
+    Out["Remove HR outlier subjects<br/>(mean HR > μ + 3σ)"]
+    Anti["Anti-vectorise LR vectors<br/>→ LR adjacency matrices<br/>(160 × 160) per subject"]
+  end
+
+  LRtr --> San
+  HRtr --> San
+  San --> Out
+  Out --> Anti
+
+  %% ---------- Model ----------
+  subgraph M["Model: Improved SGC Baseline"]
+    direction TB
+    AdjN["Adjacency normalisation<br/>Ã = D⁻¹/² (A + I) D⁻¹/²"]
+    SGCk["SGC propagation (K steps)<br/>X₀ = A<br/>Xₖ = Ã·Xₖ₋₁"]
+    NodeProj["Node projection<br/>Linear(160 → hidden_dim)"]
+    Flat["Flatten node embeddings<br/>(160 × hidden_dim) → vector"]
+    MLP["MLP head<br/>Linear → ReLU → Dropout → Linear<br/>output: 35778 HR-edge vector"]
+    Clip["Postprocess<br/>clip predictions to 0,1<br/>+ NaN/Inf → 0"]
+  end
+
+  Anti --> AdjN --> SGCk --> NodeProj --> Flat --> MLP --> Clip
+
+  %% ---------- Training (3-fold CV) ----------
+  subgraph T["Training: 3-Fold CV"]
+    direction TB
+    Split["KFold(n_splits=3, shuffle=True,<br/>random_state=seed)"]
+    TrainLoop["Per fold training loop<br/>AdamW + L1Loss<br/>Early stopping (patience)<br/>Restore best weights"]
+    Val["Validation per fold<br/>Compute MAE + other measures<br/>(on held-out fold)"]
+    SaveFold["Save fold predictions<br/>outputs/predictions_fold_{k}.csv"]
+    OOF["OOF aggregation<br/>concat all fold preds + gts<br/>OOF Flatten MAE"]
+    Plot["Bar plots across folds<br/>(figs/improved_cv_metrics.png)"]
+  end
+
+  Clip --> Split
+  Split --> TrainLoop --> Val --> SaveFold
+  Val --> OOF --> Plot
+
+  %% ---------- Test Inference (Fold-avg, Seed-avg) ----------
+  subgraph E[Testing / Ensembling for Kaggle]
+    direction TB
+    PrepTe["Sanitise + anti-vectorise test LR<br/>→ test LR matrices (112 × 160 × 160)"]
+    FoldAvg["Fold-averaged test prediction<br/>Average over 3 folds"]
+    SeedAvg["Seed-averaging<br/>Repeat CV for multiple seeds<br/>Average over seeds × folds"]
+    Sub1["Write submission<br/>outputs/submission_foldavg.csv"]
+    Sub2["Write submission<br/>outputs/submission_foldavg_seedavg.csv"]
+    Melt["Flatten to 1D<br/>Create ID=1..4,007,136<br/>CSV columns: ID, Predicted"]
+  end
+
+  LRte --> PrepTe
+  PrepTe --> FoldAvg --> Sub1 --> Melt
+  PrepTe --> SeedAvg --> Sub2 --> Melt
+
+  %% ---------- Notes ----------
+  subgraph N[Outputs]
+    direction TB
+    O1["3 files:<br/>outputs/predictions_fold_1.csv<br/>outputs/predictions_fold_2.csv<br/>outputs/predictions_fold_3.csv"]
+    O2["Figures:<br/>figs/improved_cv_metrics.png<br/>(+ main pipeline figure in report)"]
+    O3["Kaggle submission:<br/>submission_foldavg*.csv"]
+  end
+
+  SaveFold --> O1
+  Plot --> O2
+  Melt --> O3
+
+  %% ---------- Colour scheme (mirrors plot_chart.py) ----------
+  classDef inputs   fill:#ff6b6b,stroke:#cc4444,color:#fff
+  classDef preproc  fill:#6ab04c,stroke:#4a8a2c,color:#fff
+  classDef model    fill:#686de0,stroke:#4848b0,color:#fff
+  classDef training fill:#f6c667,stroke:#c49030,color:#333
+  classDef testing  fill:#63cdda,stroke:#3a9aaa,color:#333
+  classDef outputs  fill:#fd9644,stroke:#c96820,color:#fff
+
+  class LRtr,HRtr,LRte inputs
+  class San,Out,Anti preproc
+  class AdjN,SGCk,NodeProj,Flat,MLP,Clip model
+  class Split,TrainLoop,Val,SaveFold,OOF,Plot training
+  class PrepTe,FoldAvg,SeedAvg,Sub1,Sub2,Melt testing
+  class O1,O2,O3 outputs
