@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 
 def plot_fold_metrics(
     all_fold_metrics: list[dict],
-    title: str = "SGC Baseline – 3-Fold Cross-Validation Metrics",
+    title: str = "SGC Baseline: 3-Fold Cross-Validation Metrics",
     save_path: str | None = None,
 ) -> plt.Figure:
     """Plot per-fold and average metrics bar charts.
